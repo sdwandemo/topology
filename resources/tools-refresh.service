@@ -7,8 +7,9 @@ Requires=docker.service
 Type=simple
 EnvironmentFile=-/etc/default/tools-refresh
 EnvironmentFile=-/etc/default/tools-refresh.d/*
-ExecStartPre=/usr/bin/curl
-ExecStart=/usr/sbin/virsh --connect qemu:///system start $VM_NAME
+ExecStartPre=/usr/bin/curl -fsSL https://raw.githubusercontent.com/sdwandemo/topology/master/scripts/tools-refresh.sh > /usr/local/bin/tools-refresh.sh
+ExecStartPre=/bin/chmod +x /usr/local/bin/tools-refresh.sh
+ExecStart=/usr/local/bin/tools-refresh.sh
 SyslogIdentifier=tools-refresh
 
 [Install]
