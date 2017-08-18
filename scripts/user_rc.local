@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+# -*- shell-script -*-
+docker pull sdwandemo/tiny-helper
+
+DKR="/usr/bin/docker run --rm -t -w /opt/tmp -v /mnt/images:/mnt/images -v /opt/tmp:/opt/tmp sdwandemo/tiny-helper"
+compose_url="https://github.com/sdwandemo/topology2.git"
+
+_pull_images() {
+    images=$(docker images | awk 'NR > 1 {print $1":"$2}')
+    [[ -n "$images" ]] && for i in $images; do docker pull $i; done
+}
+
+_enable_kernel_headers() {
+    # -v /usr/src:/usr/src -v /lib/modules:/lib/modules
+    headers=$(ros service list | grep 'disabled kernel' | cut -d ' ' -f2)
+    [[ -n "$headers" ]] && for i in $headers; do (sudo ros service enable $i && sudo ros service up $i); done
+}
+
+_mk_networks() {
+    [[ ! $(docker network ls | grep -qs management) ]] && docker network create --driver bridge --subnet 10.0.0.0/24 --gateway 10.0.0.1 management
+}
+
+_download() {
+    logger -t user_rc.local -s DOWNLOAD IMAGES
+    $DKR wget http://demo.njk.li:8081/imgs.7z
+    $DKR 7z x imgs.7z
+    rm -rf /opt/tmp/imgs.7z
+    logger -t user_rc.local -s DOWNLOAD IMAGES FINISHED
+}
+
+_copy_prep() {
+    logger -t user_rc.local -s COPY IMAGES PREP
+    local cmd="ruby -ropen-uri -e"
+    $DKR $cmd "eval(open('https://raw.githubusercontent.com/sdwandemo/topology2/master/scripts/copy_prep.rb').read)"
+    logger -t user_rc.local -s COPY IMAGES PREP FINISHED
+}
+
+_install_zsh() {
+    chsh -s /bin/zsh rancher
+    runuser -l rancher -c "$(curl -fsSL https://raw.github.com/robbyrussell/oh-my-zsh/master/tools/install.sh)"
+    runuser -l rancher -c "sed -i 's/robbyrussell/sunaku/' ~/.zshrc"
+}
+
+_docker_compose() {
+    echo 1024 > /proc/sys/fs/inotify/max_user_instances
+    echo 65536 > /proc/sys/fs/inotify/max_user_watches
+    runuser -l rancher -c ""
+    runuser -l rancher -c "git clone ${compose_url} app"
+    runuser -l rancher -c "cd app && docker-compose up -d --force-recreate"
+}
+
+_enable_kernel_headers
+# _pull_images
+# _mk_networks
+[[ ! -d /home/rancher/.oh-my-zsh ]] && _install_zsh
+_download
+_copy_prep
+/opt/tmp/init_images
+_docker_compose
+
+exit 0

@@ -1,0 +1,14 @@
+#!/bin/bash
+groupadd -r nopasswdlogin
+sed -i '1 a auth        sufficient  pam_succeed_if.so user ingroup nopasswdlogin' /etc/pam.d/lightdm
+
+# hide dev from chooser and allow it to login
+cat > /var/lib/AccountsService/users/dev <<EOS
+[User]
+XSession=xfce
+SystemAccount=true
+EOS
+usermod -a -G nopasswdlogin dev
+
+# add demo user without passwd
+useradd -m -G wheel,video,audio,nopasswdlogin -s /bin/bash sdwan-demo

@@ -1,0 +1,1207 @@
+version: '3.2'
+
+# volumes:
+#   data:
+#     driver: local
+
+services:
+
+##################################################
+# Ingress and Remote-Access stuff
+##################################################
+
+  # <START> poor mans Ingress, until replaced with k8
+
+  # nginx:
+  #   image: nginx
+  #   labels:
+  #       com.github.jrcs.letsencrypt_nginx_proxy_companion.nginx_proxy: "true"
+  #   container_name: nginx
+  #   restart: unless-stopped
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #   volumes:
+  #     - ${NGINX_FILES_PATH}/conf.d:/etc/nginx/conf.d
+  #     - ${NGINX_FILES_PATH}/vhost.d:/etc/nginx/vhost.d
+  #     - ${NGINX_FILES_PATH}/html:/usr/share/nginx/html
+  #     - ${NGINX_FILES_PATH}/certs:/etc/nginx/certs:ro
+  #   networks:
+  #     - management
+  # nginx-gen:
+  #   image: jwilder/docker-gen
+  #   command: -notify-sighup nginx -watch -wait 5s:30s /etc/docker-gen/templates/nginx.tmpl /etc/nginx/conf.d/default.conf
+  #   container_name: nginx-gen
+  #   restart: unless-stopped
+  #   volumes:
+  #     - ${NGINX_FILES_PATH}/conf.d:/etc/nginx/conf.d
+  #     - ${NGINX_FILES_PATH}/vhost.d:/etc/nginx/vhost.d
+  #     - ${NGINX_FILES_PATH}/html:/usr/share/nginx/html
+  #     - ${NGINX_FILES_PATH}/certs:/etc/nginx/certs:ro
+  #     - /var/run/docker.sock:/tmp/docker.sock:ro
+  #     - ./nginx.tmpl:/etc/docker-gen/templates/nginx.tmpl:ro
+  #   networks:
+  #     - management
+  # nginx-letsencrypt:
+  #   image: jrcs/letsencrypt-nginx-proxy-companion
+  #   container_name: nginx-letsencrypt
+  #   restart: unless-stopped
+  #   volumes:
+  #     - ${NGINX_FILES_PATH}/conf.d:/etc/nginx/conf.d
+  #     - ${NGINX_FILES_PATH}/vhost.d:/etc/nginx/vhost.d
+  #     - ${NGINX_FILES_PATH}/html:/usr/share/nginx/html
+  #     - ${NGINX_FILES_PATH}/certs:/etc/nginx/certs:rw
+  #     - /var/run/docker.sock:/var/run/docker.sock:ro
+  #   environment:
+  #     NGINX_DOCKER_GEN_CONTAINER: "nginx-gen"
+  #     NGINX_PROXY_CONTAINER: "nginx"
+  #   networks:
+  #     - management
+
+# FIXME: Mkae sure to remove 'ports' section from service definitions, after enabling the above section!
+# <END> poor mans Ingress, until replaced with k8
+
+  teleport:
+    image: sdwandemo/teleport
+    command: 'teleport start --roles=proxy,auth --config /etc/teleport.yml'
+    hostname: teleport
+    domainname: sdwan-demo.com
+    restart: always
+    volumes:
+      # - /mnt/config/teleport:/var/lib/teleport
+      - ./resources/teleport_site.yml:/etc/teleport.yml
+    environment:
+      VIRTUAL_HOST: teleport.sdwan-demo.com
+      VIRTUAL_PROTO: https
+      VIRTUAL_PORT: 3080
+      LETSENCRYPT_HOST: teleport.sdwan-demo.com
+      LETSENCRYPT_EMAIL: webadmin@sdwan-demo.com
+    networks:
+      - management
+    expose:
+      - 3022
+      - 3023
+      - 3024
+      - 3025
+      - 3080
+    ports:
+      - 3022:3022
+      - 3023:3023
+      - 3024:3024
+      - 3025:3025
+      - 3080:3080
+
+  mariadb:
+    image: mariadb
+    hostname: mariadb
+    domainname: sdwan-demo.com
+    # debugging:
+    # SET global general_log_file='/tmp/mysql.log';
+    # SET global log_output = 'file';
+    # SET global general_log = on;
+    restart: always
+    volumes:
+      # - ./resources/guacamole_initdb_mysql.sql:/docker-entrypoint-initdb.d/init.sql
+      # FIXME: Find a more elegant way to manage users/sessions during provisioning.
+      - ./resources/final_dump.sql:/docker-entrypoint-initdb.d/init.sql
+    environment:
+      # MYSQL_ROOT_PASSWORD: root_passwd
+      MYSQL_ALLOW_EMPTY_PASSWORD: 'yes'
+      MYSQL_USER: guacamole_user
+      MYSQL_PASSWORD: some_password
+      MYSQL_DATABASE: guacamole_db
+    networks:
+      - management
+
+  guacd:
+    image: guacamole/guacd
+    hostname: guacd
+    domainname: sdwan-demo.com
+    restart: always
+    networks:
+      - management
+
+# FIXME: guacamole images get updated, need to always keep the latest init script version with
+# docker run --rm guacamole/guacamole /opt/guacamole/bin/initdb.sh --mysq > ~/mysql_initdb.sql
+# TODO: Change main login page html to skip guacamole logos and have 'SD-WAN Demo'
+# URI sdwan-demo.com/desktop
+  guac:
+    image: guacamole/guacamole
+    hostname: guacamole
+    domainname: sdwan-demo.com
+    restart: always
+    command: ["/usr/local/bin/guacamole_webroot_fix.sh"]
+    volumes:
+      - ./scripts/guacamole_webroot_fix.sh:/usr/local/bin/guacamole_webroot_fix.sh
+    expose:
+      - 8080
+    ports:
+      - 8080:8080
+    environment:
+      # POSTGRES_HOSTNAME: postgres
+      # POSTGRES_DATABASE: guacamole_db
+      # POSTGRES_USER: guacamole_user
+      # POSTGRES_PASSWORD: some_password
+      MYSQL_HOSTNAME: mariadb
+      MYSQL_DATABASE: guacamole_db
+      MYSQL_USER: guacamole_user
+      MYSQL_PASSWORD: some_password
+      GUACD_HOSTNAME: guacd
+      GUACD_PORT: 4822
+      VIRTUAL_HOST: vnc.sdwan-demo.com
+      LETSENCRYPT_HOST: vnc.sdwan-demo.com
+      LETSENCRYPT_EMAIL: webadmin@sdwan-demo.com
+    networks:
+      - management
+    depends_on:
+      - mariadb
+      - guacd
+
+##################################################
+# Debugging networks
+##################################################
+  net-debug:
+    image: sdwandemo/net-debug
+    hostname: net-debug
+    domainname: sdwan-demo.com
+    privileged: true
+    stdin_open: true
+    tty: true
+    restart: always
+    depends_on:
+      - teleport
+    tmpfs:
+      - /tmp
+      - /run
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup
+      - ./dockerfiles/libvirt/overlay/etc/systemd/system/teleport.service.d/override.conf:/etc/systemd/system/teleport.service.d/override.conf
+      - ./resources/xvnc_defaults:/etc/default/xvnc
+      - ./scripts/lightdm-helper:/etc/container-boot.d/lightdm
+    networks:
+      - management
+      - egress
+      - n_172_16_1_0__24
+      - n_192_168_1_0__24
+      - n_192_168_2_0__24
+      - n_192_168_3_0__24
+      - n_172_16_2_0__24
+      - n_10_0_2_0__24
+      - n_10_0_4_0__24
+      - n_172_16_3_0__24
+      - n_192_168_4_0__25
+      - n_192_168_4_128__25
+      - n_10_0_5_0__24
+      - n_10_0_6_0__24
+      - n_172_16_5_0__24
+      - n_172_16_6_0__24
+      - n_10_0_7_0__24
+      - n_172_16_7_0__24
+      - n_172_16_8_0__24
+      - n_192_168_100_0__24
+      - n_192_168_7_0__25
+      - n_192_168_7_128__25
+      - n_172_16_21_0__24
+      - n_10_0_21_0__24
+      - n_10_0_1_0__25
+      - n_10_0_8_0__24
+      - n_10_0_1_128__25
+      - n_172_16_51_0__24
+      - n_192_168_6_0__25
+      - n_172_16_52_0__24
+      - n_192_168_6_128__25
+      - n_192_168_5_0__24
+
+##################################################
+# Viptela kVMs
+##################################################
+
+  # # define from CMD
+  # e-regdc1:
+  #   image: voobscout/viptela
+  #   command: '-n e-regdc1 -t "e-regdc1 North West quadrant on Diagram" -m 2048m --net "10.10.10.0/24 192.168.7.0/24 172.16.7.0/24 10.0.7.0/24" -c 4'
+  #   hostname: e-regdc1
+  #   domainname: sdwan-demo.com
+  #   privileged: true
+  #   stdin_open: true
+  #   tty: true
+  #   restart: always
+  #   tmpfs:
+  #     - /tmp
+  #     - /run
+  #   volumes:
+  #     - /mnt/images:/var/lib/libvirt/images
+  #     - /mnt/images/ubuntu_1604.qcow2:/var/lib/libvirt/images/image.qcow2
+  #     - /sys/fs/cgroup:/sys/fs/cgroup
+  #   networks:
+  #     - n_192_168_7_0__24
+  #     - n_172_16_7_0__24
+  #     - n_10_0_7_0__24
+
+##################################################
+# 1 - Site1
+# 2 - Site2
+# 3 - Site3-Legacy
+# B2B - Business-to-Business
+# INET - Internet
+# DC - DataCenter
+# RegDC - Regional DataCenter
+# B - vBond
+# S - vSmart
+# M - vManage
+# FW - Firewall
+# E on top of the two DC boxes - DataCenter-Core-Switch
+# WAN EM - WAN-Emulator
+# UX SRV below 1 - Client-Site1
+# UX Desktop below 2 - Client-Site2
+# UX SRV below 3 - Client-Site3
+##################################################
+# E - 2GB RAM, 2 vCPU, 4GB disk - viptela-edge-genericx86-64.qcow2
+# S - 2GB RAM, 2 vCPU, 4Gb disk - viptela-smart-genericx86-64.qcow2
+# M - 16GB RAM, 8 vCPU, 10Gb disk - viptela-vmanage-genericx86-64.qcow2
+# pfSense - 1GB RAM, 1 vCPU, 1Gb disk
+# WAN emulator - 512MB RAM, 1 vCPU, 4Gb
+# CSR 1Kv - 4GB RAM, 1 vCPU, 8GB disk
+##################################################
+# public_ip
+# ns1 173.199.96.97
+# ns2 173.199.96.96
+##################################################
+
+  # Alternative definition with ENV
+  e-reg-dc:
+    image: sdwandemo/libvirt
+    # healthcheck:
+    #   test: ["CMD", "curl", "-f", "http://localhost"]
+    #   test: ["CMD-SHELL", "curl -f http://localhost && echo 'cool, it works'"]
+    #   start_period: 1m
+    #   interval: 1m30s
+    #   timeout: 10s
+    #   retries: 3
+    environment:
+      VM_NAME: e-reg-dc
+      VM_TITLE: 'E - Regional DataCenter'
+      VM_MEM: 2048m
+      VM_CPUS: 2
+      VM_NET: '10.10.10.0/24 192.168.7.0/25 192.168.7.128/25 172.16.7.0/24 10.0.7.0/24'
+      VM_DISK: /var/lib/libvirt/images/viptela-edge-genericx86-64.qcow2
+      VM_DISK_SIZE: 4G
+    hostname: e-reg-dc
+    domainname: sdwan-demo.com
+    privileged: true
+    stdin_open: true
+    tty: true
+    restart: always
+    depends_on:
+      - teleport
+    tmpfs:
+      - /tmp
+      - /run
+    volumes:
+      - /mnt/images:/var/lib/libvirt/images
+      - /sys/fs/cgroup:/sys/fs/cgroup
+    networks:
+      - management
+      - n_192_168_7_0__25
+      - n_192_168_7_128__25
+      - n_172_16_7_0__24
+      - n_10_0_7_0__24
+
+# TODO: sdwan-demo.com/firewall
+# WAN interface to EGRESS
+  firewall:
+    image: sdwandemo/libvirt
+    environment:
+      VM_NAME: pfsense
+      VM_TITLE: 'pfSense 2.3.4 embedded kernel'
+      VM_MEM: 1024m
+      VM_CPUS: 1
+      VM_NET: '10.10.10.0/24 10.11.11.0/24 192.168.7.0/25 192.168.7.128/25'
+      VM_DISK: /var/lib/libvirt/images/pfSense_234.qcow2
+      VM_DISK_SIZE: 5G
+    hostname: firewall
+    domainname: sdwan-demo.com
+    privileged: true
+    stdin_open: true
+    tty: true
+    restart: always
+    tmpfs:
+      - /tmp
+      - /run
+    volumes:
+      - /mnt/images:/var/lib/libvirt/images
+      - /sys/fs/cgroup:/sys/fs/cgroup
+    networks:
+      - management
+      - egress
+      - n_192_168_7_0__25
+      - n_192_168_7_128__25
+
+# TODO: connect NIC to EGRESS
+  core-switch:
+    image: sdwandemo/libvirt
+    environment:
+      VM_NAME: core-switch
+      VM_TITLE: 'E - DataCenter Core Switch'
+      VM_MEM: 2048m
+      VM_CPUS: 2
+      VM_NET: '10.10.10.0/24 10.11.11.0/24 192.168.5.0/24 172.16.51.0/24 192.168.6.0/25 172.16.52.0/24 192.168.6.128/25'
+      VM_DISK: /var/lib/libvirt/images/viptela-edge-genericx86-64.qcow2
+      VM_DISK_SIZE: 4G
+    hostname: core-switch
+    domainname: sdwan-demo.com
+    privileged: true
+    stdin_open: true
+    tty: true
+    restart: always
+    tmpfs:
+      - /tmp
+      - /run
+    volumes:
+      - /mnt/images:/var/lib/libvirt/images
+      - /sys/fs/cgroup:/sys/fs/cgroup
+    networks:
+      - management
+      - egress
+      - n_192_168_5_0__24
+      - n_172_16_51_0__24
+      - n_192_168_6_0__25
+      - n_172_16_52_0__24
+      - n_192_168_6_128__25
+
+  ux-srv-coreswitch:
+    image: sdwandemo/teleport
+    command: 'teleport start --roles=node --token=internalxyz --auth-server=teleport:3025'
+    hostname: ux-srv-coreswitch
+    domainname: sdwan-demo.com
+    restart: always
+    networks:
+      - management
+      - n_192_168_5_0__24
+
+  dc-left:
+    image: sdwandemo/libvirt
+    environment:
+      VM_NAME: dc-left
+      VM_TITLE: 'E - Regional DataCenter - Left'
+      VM_MEM: 2048m
+      VM_CPUS: 2
+      VM_NET: '10.10.10.0/24 172.16.51.0/24 192.168.6.0/25 10.0.5.0/24 172.16.5.0/24'
+      VM_DISK: /var/lib/libvirt/images/viptela-edge-genericx86-64.qcow2
+      VM_DISK_SIZE: 4G
+    hostname: dc-left
+    domainname: sdwan-demo.com
+    privileged: true
+    stdin_open: true
+    tty: true
+    restart: always
+    tmpfs:
+      - /tmp
+      - /run
+    volumes:
+      - /mnt/images:/var/lib/libvirt/images
+      - /sys/fs/cgroup:/sys/fs/cgroup
+    networks:
+      - management
+      - n_172_16_51_0__24
+      - n_192_168_6_0__25
+      - n_10_0_5_0__24
+      - n_172_16_5_0__24
+
+  dc-right:
+    image: sdwandemo/libvirt
+    environment:
+      VM_NAME: dc-right
+      VM_TITLE: 'E - Regional DataCenter - Right'
+      VM_MEM: 2048m
+      VM_CPUS: 2
+      VM_NET: '10.10.10.0/24 172.16.52.0/24 192.168.6.128/25 172.16.6.0/24 10.0.6.0/24'
+      VM_DISK: /var/lib/libvirt/images/viptela-edge-genericx86-64.qcow2
+      VM_DISK_SIZE: 4G
+    hostname: dc-right
+    domainname: sdwan-demo.com
+    privileged: true
+    stdin_open: true
+    tty: true
+    restart: always
+    tmpfs:
+      - /tmp
+      - /run
+    volumes:
+      - /mnt/images:/var/lib/libvirt/images
+      - /sys/fs/cgroup:/sys/fs/cgroup
+    networks:
+      - management
+      - n_172_16_52_0__24
+      - n_192_168_6_128__25
+      - n_172_16_6_0__24
+      - n_10_0_6_0__24
+
+# TODO: Connect one nic to EGRESS
+  e-inet:
+    image: sdwandemo/libvirt
+    environment:
+      VM_NAME: e-inet
+      VM_TITLE: 'E - Internet router'
+      VM_MEM: 2048m
+      VM_CPUS: 2
+      VM_NET: '10.10.10.0/24 10.11.11.0/24 10.0.7.0/24 10.0.5.0/24 10.0.6.0/24 10.0.8.0/24 10.0.1.128/25 10.0.2.0/24 10.0.4.0/24'
+      VM_DISK: /var/lib/libvirt/images/viptela-edge-genericx86-64.qcow2
+      VM_DISK_SIZE: 4G
+    hostname: e-inet
+    domainname: sdwan-demo.com
+    privileged: true
+    stdin_open: true
+    tty: true
+    restart: always
+    tmpfs:
+      - /tmp
+      - /run
+    volumes:
+      - /mnt/images:/var/lib/libvirt/images
+      - /sys/fs/cgroup:/sys/fs/cgroup
+    networks:
+      - management
+      - egress
+      - n_10_0_7_0__24
+      - n_10_0_5_0__24
+      - n_10_0_6_0__24
+      - n_10_0_8_0__24
+      - n_10_0_1_128__25
+      - n_10_0_2_0__24
+      - n_10_0_4_0__24
+
+  e-mpls:
+    image: sdwandemo/libvirt
+    environment:
+      VM_NAME: e-mpls
+      VM_TITLE: 'E - MPLS'
+      VM_MEM: 2048m
+      VM_CPUS: 2
+      VM_NET: '10.10.10.0/24 172.16.7.0/24 172.16.5.0/24 172.16.6.0/24 172.16.8.0/24 172.16.1.0/24 172.16.2.0/24 172.16.3.0/24'
+      VM_DISK: /var/lib/libvirt/images/viptela-edge-genericx86-64.qcow2
+      VM_DISK_SIZE: 4G
+    hostname: e-mpls
+    domainname: sdwan-demo.com
+    privileged: true
+    stdin_open: true
+    tty: true
+    restart: always
+    tmpfs:
+      - /tmp
+      - /run
+    volumes:
+      - /mnt/images:/var/lib/libvirt/images
+      - /sys/fs/cgroup:/sys/fs/cgroup
+    networks:
+      - management
+      - n_172_16_7_0__24
+      - n_172_16_5_0__24
+      - n_172_16_6_0__24
+      - n_172_16_8_0__24
+      - n_172_16_1_0__24
+      - n_172_16_2_0__24
+      - n_172_16_3_0__24
+
+##################################################
+# TODO: URI: sdwan-demo.com/wanem
+  wanem:
+    image: sdwandemo/libvirt
+    environment:
+      VM_NAME: wanem
+      VM_TITLE: 'WanEm - http://wanem.sourceforge.net/'
+      VM_MEM: 500m
+      VM_CPUS: 1
+      VM_NET: '10.10.10.0/24 10.0.1.128/25 10.0.1.0/25'
+      VM_DISK: /var/lib/libvirt/images/wanem-2.3-x86-64.qcow2
+      VM_TEMPLATE: 'https://raw.githubusercontent.com/sdwandemo/topology2/master/resources/domain_template_wanem.xml'
+      VM_DISK_SIZE: 5G
+    hostname: wanem
+    domainname: sdwan-demo.com
+    privileged: true
+    stdin_open: true
+    tty: true
+    restart: always
+    tmpfs:
+      - /tmp
+      - /run
+    volumes:
+      - /mnt/images:/var/lib/libvirt/images
+      - /sys/fs/cgroup:/sys/fs/cgroup
+    networks:
+      - management
+      - n_10_0_1_128__25
+      - n_10_0_1_0__25
+
+  e-site1:
+    image: sdwandemo/libvirt
+    environment:
+      VM_NAME: e-site1
+      VM_TITLE: 'E - Site 1'
+      VM_MEM: 2048m
+      VM_CPUS: 2
+      VM_NET: '10.10.10.0/24 10.0.1.0/25 172.16.1.0/24 192.168.1.0/24'
+      VM_DISK: /var/lib/libvirt/images/viptela-edge-genericx86-64.qcow2
+      VM_DISK_SIZE: 4G
+    hostname: e-site1
+    domainname: sdwan-demo.com
+    privileged: true
+    stdin_open: true
+    tty: true
+    restart: always
+    tmpfs:
+      - /tmp
+      - /run
+    volumes:
+      - /mnt/images:/var/lib/libvirt/images
+      - /sys/fs/cgroup:/sys/fs/cgroup
+    networks:
+      - management
+      - n_10_0_1_0__25
+      - n_172_16_1_0__24
+      - n_192_168_1_0__24
+
+  ux-srv-site1:
+    image: sdwandemo/teleport
+    command: 'teleport start --roles=node --token=internalxyz --auth-server=teleport:3025'
+    hostname: ux-srv-site1
+    domainname: sdwan-demo.com
+    restart: always
+    networks:
+      - management
+      - n_192_168_1_0__24
+
+  e-left-site2:
+    image: sdwandemo/libvirt
+    environment:
+      VM_NAME: e-left-site2
+      VM_TITLE: 'E - Left Site 2'
+      VM_MEM: 2048m
+      VM_CPUS: 2
+      VM_NET: '10.10.10.0/24 10.0.2.0/24 172.16.21.0/24 10.0.21.0/24 192.168.2.0/24'
+      VM_DISK: /var/lib/libvirt/images/viptela-edge-genericx86-64.qcow2
+      VM_DISK_SIZE: 4G
+    hostname: e-left-site2
+    domainname: sdwan-demo.com
+    privileged: true
+    stdin_open: true
+    tty: true
+    restart: always
+    tmpfs:
+      - /tmp
+      - /run
+    volumes:
+      - /mnt/images:/var/lib/libvirt/images
+      - /sys/fs/cgroup:/sys/fs/cgroup
+    networks:
+      - management
+      - n_10_0_2_0__24
+      - n_172_16_21_0__24
+      - n_10_0_21_0__24
+      - n_192_168_2_0__24
+
+  e-right-site2:
+    image: sdwandemo/libvirt
+    environment:
+      VM_NAME: e-right-site2
+      VM_TITLE: 'E - Right Site 2'
+      VM_MEM: 2048m
+      VM_CPUS: 2
+      VM_NET: '10.10.10.0/24 10.0.21.0/24 172.16.21.0/24 172.16.2.0/24 192.168.2.0/24'
+      VM_DISK: /var/lib/libvirt/images/viptela-edge-genericx86-64.qcow2
+      VM_DISK_SIZE: 4G
+    hostname: e-right-site2
+    domainname: sdwan-demo.com
+    privileged: true
+    stdin_open: true
+    tty: true
+    restart: always
+    tmpfs:
+      - /tmp
+      - /run
+    volumes:
+      - /mnt/images:/var/lib/libvirt/images
+      - /sys/fs/cgroup:/sys/fs/cgroup
+    networks:
+      - management
+      - n_10_0_21_0__24
+      - n_172_16_21_0__24
+      - n_172_16_2_0__24
+      - n_192_168_2_0__24
+
+# TODO: VNC session from desktop be accessible on sdwan-demo.com/desktop
+# DONE: Direct vnc, without guacamole menu
+# DONE: MAC via guacamole auth
+# DONE: Infinite login timeout on guac sessions
+# DONE: Xvnc port per user on machine
+# DONE: For onetime setup effort - direct access via ssh from outside (using teleport)
+
+  desktop:
+    image: sdwandemo/net-debug
+    hostname: desktop
+    domainname: sdwan-demo.com
+    privileged: true
+    stdin_open: true
+    tty: true
+    restart: always
+    depends_on:
+      - teleport
+    tmpfs:
+      - /tmp
+      - /run
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup
+      - ./dockerfiles/libvirt/overlay/etc/systemd/system/teleport.service.d/override.conf:/etc/systemd/system/teleport.service.d/override.conf
+      - ./resources/xvnc_defaults:/etc/default/xvnc
+      - ./scripts/lightdm-helper:/etc/container-boot.d/lightdm
+    networks:
+      - management
+      - n_192_168_2_0__24
+    ports:
+      - "2222:22"
+
+  e-bond1-demo:
+    image: sdwandemo/libvirt
+    environment:
+      VM_NAME: e-bond1-demo
+      VM_TITLE: 'E - vBond1 Upper right (demonstrator)'
+      VM_MEM: 2048m
+      VM_CPUS: 2
+      VM_NET: '10.10.10.0/24 192.168.100.0/24'
+      VM_DISK: /var/lib/libvirt/images/viptela-edge-genericx86-64.qcow2
+      VM_DISK_SIZE: 4G
+    hostname: e-bond1-demo
+    domainname: sdwan-demo.com
+    privileged: true
+    stdin_open: true
+    tty: true
+    restart: always
+    tmpfs:
+      - /tmp
+      - /run
+    volumes:
+      - /mnt/images:/var/lib/libvirt/images
+      - /sys/fs/cgroup:/sys/fs/cgroup
+    networks:
+      - management
+      - n_192_168_100_0__24
+
+  e-bond2-demo:
+    image: sdwandemo/libvirt
+    environment:
+      VM_NAME: e-bond2-demo
+      VM_TITLE: 'E - vBond2 Upper right (demonstrator)'
+      VM_MEM: 2048m
+      VM_CPUS: 2
+      VM_NET: '10.10.10.0/24 192.168.100.0/24'
+      VM_DISK: /var/lib/libvirt/images/viptela-edge-genericx86-64.qcow2
+      VM_DISK_SIZE: 4G
+    hostname: e-bond2-demo
+    domainname: sdwan-demo.com
+    privileged: true
+    stdin_open: true
+    tty: true
+    restart: always
+    tmpfs:
+      - /tmp
+      - /run
+    volumes:
+      - /mnt/images:/var/lib/libvirt/images
+      - /sys/fs/cgroup:/sys/fs/cgroup
+    networks:
+      - management
+      - n_192_168_100_0__24
+
+  s-smart1-demo:
+    image: sdwandemo/libvirt
+    environment:
+      VM_NAME: s-smart1-demo
+      VM_TITLE: 'S - vSmart1 Upper right (demonstrator)'
+      VM_MEM: 2048m
+      VM_CPUS: 2
+      VM_NET: '10.10.10.0/24 192.168.100.0/24'
+      VM_DISK: /var/lib/libvirt/images/viptela-smart-genericx86-64.qcow2
+      VM_DISK_SIZE: 4G
+    hostname: s-smart1-demo
+    domainname: sdwan-demo.com
+    privileged: true
+    stdin_open: true
+    tty: true
+    restart: always
+    tmpfs:
+      - /tmp
+      - /run
+    volumes:
+      - /mnt/images:/var/lib/libvirt/images
+      - /sys/fs/cgroup:/sys/fs/cgroup
+    networks:
+      - management
+      - n_192_168_100_0__24
+
+  s-smart2-demo:
+    image: sdwandemo/libvirt
+    environment:
+      VM_NAME: s-smart2-demo
+      VM_TITLE: 'S - vSmart2 Upper right (demonstrator)'
+      VM_MEM: 2048m
+      VM_CPUS: 2
+      VM_NET: '10.10.10.0/24 192.168.100.0/24'
+      VM_DISK: /var/lib/libvirt/images/viptela-smart-genericx86-64.qcow2
+      VM_DISK_SIZE: 4G
+    hostname: s-smart2-demo
+    domainname: sdwan-demo.com
+    privileged: true
+    stdin_open: true
+    tty: true
+    restart: always
+    tmpfs:
+      - /tmp
+      - /run
+    volumes:
+      - /mnt/images:/var/lib/libvirt/images
+      - /sys/fs/cgroup:/sys/fs/cgroup
+    networks:
+      - management
+      - n_192_168_100_0__24
+
+# TODO: separate URI - sdwan-demo.com/vmanage
+  vmanage:
+    image: sdwandemo/libvirt
+    environment:
+      VM_NAME: vmanage
+      VM_TITLE: 'M - vManage Upper right (demonstrator)'
+      VM_MEM: 16g
+      VM_CPUS: 8
+      VM_NET: '10.10.10.0/24 192.168.100.0/24'
+      VM_DISK: /var/lib/libvirt/images/viptela-vmanage-genericx86-64.qcow2
+      VM_DISK_SIZE: 10G
+    hostname: vmanage
+    domainname: sdwan-demo.com
+    privileged: true
+    stdin_open: true
+    tty: true
+    restart: always
+    tmpfs:
+      - /tmp
+      - /run
+    volumes:
+      - /mnt/images:/var/lib/libvirt/images
+      - /sys/fs/cgroup:/sys/fs/cgroup
+    networks:
+      - management
+      - n_192_168_100_0__24
+
+  e-cloud:
+    image: sdwandemo/libvirt
+    environment:
+      VM_NAME: e-cloud
+      VM_TITLE: 'E - Cloud Upper right (demonstrator)'
+      VM_MEM: 2g
+      VM_CPUS: 2
+      VM_NET: '10.10.10.0/24 192.168.100.0/24 172.16.8.0/24 10.0.8.0/24'
+      VM_DISK: /var/lib/libvirt/images/viptela-edge-genericx86-64.qcow2
+      VM_DISK_SIZE: 5G
+    hostname: e-cloud
+    domainname: sdwan-demo.com
+    privileged: true
+    stdin_open: true
+    tty: true
+    restart: always
+    tmpfs:
+      - /tmp
+      - /run
+    volumes:
+      - /mnt/images:/var/lib/libvirt/images
+      - /sys/fs/cgroup:/sys/fs/cgroup
+    networks:
+      - management
+      - n_192_168_100_0__24
+      - n_172_16_8_0__24
+      - n_10_0_8_0__24
+
+  e-b2b:
+    image: sdwandemo/libvirt
+    environment:
+      VM_NAME: e-b2b
+      VM_TITLE: 'E - B2B East-Side'
+      VM_MEM: 2g
+      VM_CPUS: 2
+      VM_NET: '10.10.10.0/24 10.0.4.0/24 192.168.4.0/25'
+      VM_DISK: /var/lib/libvirt/images/viptela-edge-genericx86-64.qcow2
+      VM_DISK_SIZE: 5G
+    hostname: e-b2b
+    domainname: sdwan-demo.com
+    privileged: true
+    stdin_open: true
+    tty: true
+    restart: always
+    tmpfs:
+      - /tmp
+      - /run
+    volumes:
+      - /mnt/images:/var/lib/libvirt/images
+      - /sys/fs/cgroup:/sys/fs/cgroup
+    networks:
+      - management
+      - n_10_0_4_0__24
+      - n_192_168_4_0__25
+
+  csr1k-b2b:
+    image: sdwandemo/libvirt
+    environment:
+      VM_NAME: csr1k-b2b
+      VM_TITLE: 'B2B - Cisco CSR 1k'
+      VM_MEM: 4g
+      VM_CPUS: 1
+      VM_NET: '10.10.10.0/24 192.168.4.0/25 192.168.4.128/25'
+      VM_DISK: /var/lib/libvirt/images/csr1000v-universalk9.03.12.00.S.154-2.S-std.qcow2
+      VM_DISK_SIZE: 8G
+    hostname: csr1k-b2b
+    domainname: sdwan-demo.com
+    privileged: true
+    stdin_open: true
+    tty: true
+    restart: always
+    tmpfs:
+      - /tmp
+      - /run
+    volumes:
+      - /mnt/images:/var/lib/libvirt/images
+      - /sys/fs/cgroup:/sys/fs/cgroup
+    networks:
+      - management
+      - n_192_168_4_0__25
+      - n_192_168_4_128__25
+
+  ux-srv-b2b:
+    image: sdwandemo/teleport
+    command: 'teleport start --roles=node --token=internalxyz --auth-server=teleport:3025'
+    hostname: ux-srv-b2b
+    domainname: sdwan-demo.com
+    restart: always
+    networks:
+      - management
+      - n_192_168_4_128__25
+
+  csr1k-site3:
+    image: sdwandemo/libvirt
+    environment:
+      VM_NAME: csr1k-site3
+      VM_TITLE: 'Site3 - Cisco CSR 1k'
+      VM_MEM: 4g
+      VM_CPUS: 1
+      VM_NET: '10.10.10.0/24 172.16.3.0/24 192.168.3.0/24'
+      VM_DISK: /var/lib/libvirt/images/csr1000v-universalk9.03.12.00.S.154-2.S-std.qcow2
+      VM_DISK_SIZE: 8G
+    hostname: csr1k-site3
+    domainname: sdwan-demo.com
+    privileged: true
+    stdin_open: true
+    tty: true
+    restart: always
+    tmpfs:
+      - /tmp
+      - /run
+    volumes:
+      - /mnt/images:/var/lib/libvirt/images
+      - /sys/fs/cgroup:/sys/fs/cgroup
+    networks:
+      - management
+      - n_172_16_3_0__24
+      - n_192_168_3_0__24
+
+  ux-srv-site3:
+    image: sdwandemo/teleport
+    command: 'teleport start --roles=node --token=internalxyz --auth-server=teleport:3025'
+    hostname: ux-srv-site3
+    domainname: sdwan-demo.com
+    restart: always
+    networks:
+      - management
+      - n_192_168_3_0__24
+
+networks:
+  management:
+    driver: bridge
+    driver_opts:
+      com.docker.network.enable_ipv6: 'false'
+    ipam:
+      driver: default
+      config:
+      - subnet: 10.10.10.0/24
+  egress:
+    driver: bridge
+    driver_opts:
+      com.docker.network.enable_ipv6: 'false'
+    ipam:
+      driver: default
+      config:
+      - subnet: 10.11.11.0/24
+  n_172_16_1_0__24:
+    driver: bridge
+    driver_opts:
+      com.docker.network.enable_ipv6: 'false'
+    ipam:
+      driver: default
+      config:
+      - subnet: 172.16.1.0/24
+  n_192_168_1_0__24:
+    driver: bridge
+    driver_opts:
+      com.docker.network.enable_ipv6: 'false'
+    ipam:
+      driver: default
+      config:
+      - subnet: 192.168.1.0/24
+  n_192_168_2_0__24:
+    driver: bridge
+    driver_opts:
+      com.docker.network.enable_ipv6: 'false'
+    ipam:
+      driver: default
+      config:
+      - subnet: 192.168.2.0/24
+  n_192_168_3_0__24:
+    driver: bridge
+    driver_opts:
+      com.docker.network.enable_ipv6: 'false'
+    ipam:
+      driver: default
+      config:
+      - subnet: 192.168.3.0/24
+  n_172_16_2_0__24:
+    driver: bridge
+    driver_opts:
+      com.docker.network.enable_ipv6: 'false'
+    ipam:
+      driver: default
+      config:
+      - subnet: 172.16.2.0/24
+  n_10_0_2_0__24:
+    driver: bridge
+    driver_opts:
+      com.docker.network.enable_ipv6: 'false'
+    ipam:
+      driver: default
+      config:
+      - subnet: 10.0.2.0/24
+  n_10_0_4_0__24:
+    driver: bridge
+    driver_opts:
+      com.docker.network.enable_ipv6: 'false'
+    ipam:
+      driver: default
+      config:
+      - subnet: 10.0.4.0/24
+  n_172_16_3_0__24:
+    driver: bridge
+    driver_opts:
+      com.docker.network.enable_ipv6: 'false'
+    ipam:
+      driver: default
+      config:
+      - subnet: 172.16.3.0/24
+  n_192_168_4_0__25:
+    driver: bridge
+    driver_opts:
+      com.docker.network.enable_ipv6: 'false'
+    ipam:
+      driver: default
+      config:
+      - subnet: 192.168.4.0/25
+  n_192_168_4_128__25:
+    driver: bridge
+    driver_opts:
+      com.docker.network.enable_ipv6: 'false'
+    ipam:
+      driver: default
+      config:
+      - subnet: 192.168.4.128/25
+  n_10_0_5_0__24:
+    driver: bridge
+    driver_opts:
+      com.docker.network.enable_ipv6: 'false'
+    ipam:
+      driver: default
+      config:
+      - subnet: 10.0.5.0/24
+  n_10_0_6_0__24:
+    driver: bridge
+    driver_opts:
+      com.docker.network.enable_ipv6: 'false'
+    ipam:
+      driver: default
+      config:
+      - subnet: 10.0.6.0/24
+  n_172_16_5_0__24:
+    driver: bridge
+    driver_opts:
+      com.docker.network.enable_ipv6: 'false'
+    ipam:
+      driver: default
+      config:
+      - subnet: 172.16.5.0/24
+  n_172_16_6_0__24:
+    driver: bridge
+    driver_opts:
+      com.docker.network.enable_ipv6: 'false'
+    ipam:
+      driver: default
+      config:
+      - subnet: 172.16.6.0/24
+  n_10_0_7_0__24:
+    driver: bridge
+    driver_opts:
+      com.docker.network.enable_ipv6: 'false'
+    ipam:
+      driver: default
+      config:
+      - subnet: 10.0.7.0/24
+  n_172_16_7_0__24:
+    driver: bridge
+    driver_opts:
+      com.docker.network.enable_ipv6: 'false'
+    ipam:
+      driver: default
+      config:
+      - subnet: 172.16.7.0/24
+  n_192_168_100_0__24:
+    driver: bridge
+    driver_opts:
+      com.docker.network.enable_ipv6: 'false'
+    ipam:
+      driver: default
+      config:
+      - subnet: 192.168.100.0/24
+  n_172_16_21_0__24:
+    driver: bridge
+    driver_opts:
+      com.docker.network.enable_ipv6: 'false'
+    ipam:
+      driver: default
+      config:
+      - subnet: 172.16.21.0/24
+  n_10_0_21_0__24:
+    driver: bridge
+    driver_opts:
+      com.docker.network.enable_ipv6: 'false'
+    ipam:
+      driver: default
+      config:
+      - subnet: 10.0.21.0/24
+  n_10_0_1_128__25:
+    driver: bridge
+    driver_opts:
+      com.docker.network.enable_ipv6: 'false'
+    ipam:
+      driver: default
+      config:
+      - subnet: 10.0.1.128/25
+  n_172_16_51_0__24:
+    driver: bridge
+    driver_opts:
+      com.docker.network.enable_ipv6: 'false'
+    ipam:
+      driver: default
+      config:
+      - subnet: 172.16.51.0/24
+  n_192_168_6_0__25:
+    driver: bridge
+    driver_opts:
+      com.docker.network.enable_ipv6: 'false'
+    ipam:
+      driver: default
+      config:
+      - subnet: 192.168.6.0/25
+  n_172_16_52_0__24:
+    driver: bridge
+    driver_opts:
+      com.docker.network.enable_ipv6: 'false'
+    ipam:
+      driver: default
+      config:
+      - subnet: 172.16.52.0/24
+  n_192_168_6_128__25:
+    driver: bridge
+    driver_opts:
+      com.docker.network.enable_ipv6: 'false'
+    ipam:
+      driver: default
+      config:
+      - subnet: 192.168.6.128/25
+  n_192_168_7_0__25:
+    driver: bridge
+    driver_opts:
+      com.docker.network.enable_ipv6: 'false'
+    ipam:
+      driver: default
+      config:
+      - subnet: 192.168.7.0/25
+  n_192_168_7_128__25:
+    driver: bridge
+    driver_opts:
+      com.docker.network.enable_ipv6: 'false'
+    ipam:
+      driver: default
+      config:
+      - subnet: 192.168.7.128/25
+  n_172_16_8_0__24:
+    driver: bridge
+    driver_opts:
+      com.docker.network.enable_ipv6: 'false'
+    ipam:
+      driver: default
+      config:
+      - subnet: 172.16.8.0/24
+  n_10_0_8_0__24:
+    driver: bridge
+    driver_opts:
+      com.docker.network.enable_ipv6: 'false'
+    ipam:
+      driver: default
+      config:
+      - subnet: 10.0.8.0/24
+  n_192_168_5_0__24:
+    driver: bridge
+    driver_opts:
+      com.docker.network.enable_ipv6: 'false'
+    ipam:
+      driver: default
+      config:
+      - subnet: 192.168.5.0/24
+  n_10_0_1_0__25:
+    driver: bridge
+    driver_opts:
+      com.docker.network.enable_ipv6: 'false'
+    ipam:
+      driver: default
+      config:
+      - subnet: 10.0.1.0/25
+  n_172_16_50_0__24:
+    driver: bridge
+    driver_opts:
+      com.docker.network.enable_ipv6: 'false'
+    ipam:
+      driver: default
+      config:
+      - subnet: 172.16.50.0/24
+  n_10_0_9_0__24:
+    driver: bridge
+    driver_opts:
+      com.docker.network.enable_ipv6: 'false'
+    ipam:
+      driver: default
+      config:
+      - subnet: 10.0.9.0/24
+  n_172_16_9_0__24:
+    driver: bridge
+    driver_opts:
+      com.docker.network.enable_ipv6: 'false'
+    ipam:
+      driver: default
+      config:
+      - subnet: 172.16.9.0/24
+
+  # ext:
+  #   external:
+  #     name: donzo

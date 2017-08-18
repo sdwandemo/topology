@@ -1,0 +1,9 @@
+teleport:
+  # advertise_ip: 10.1.0.5
+
+auth_service:
+  authentication:
+    second_factor: off
+  tokens:
+    - "node:internalxyz"
+  # cluster_name: "viptela-demo"

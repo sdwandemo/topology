@@ -1,0 +1,15 @@
+[Unit]
+Description=Tools refresh
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+EnvironmentFile=-/etc/default/tools-refresh
+EnvironmentFile=-/etc/default/tools-refresh.d/*
+ExecStartPre=/usr/bin/curl
+ExecStart=/usr/sbin/virsh --connect qemu:///system start $VM_NAME
+SyslogIdentifier=tools-refresh
+
+[Install]
+WantedBy=multi-user.target
