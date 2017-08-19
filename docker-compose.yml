@@ -39,7 +39,7 @@ services:
   #     - ${NGINX_FILES_PATH}/html:/usr/share/nginx/html
   #     - ${NGINX_FILES_PATH}/certs:/etc/nginx/certs:ro
   #     - /var/run/docker.sock:/tmp/docker.sock:ro
-  #     - ./nginx.tmpl:/etc/docker-gen/templates/nginx.tmpl:ro
+  #     - ./resources/nginx.tmpl:/etc/docker-gen/templates/nginx.tmpl:ro
   #   networks:
   #     - management
   # nginx-letsencrypt:
