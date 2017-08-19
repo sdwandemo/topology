@@ -36,6 +36,6 @@ _pull_images
 _copy_prep
 /opt/tmp/init_images
 _docker_compose_refresh
-_docker_compose_run
+#_docker_compose_run
 
 logger -t tools-refresh -s 'script finished'
