@@ -1,7 +1,7 @@
 %w(yaml pathname fileutils).each(&method(:require))
 
 cmd = "docker run -dti -v /mnt/images:/mnt/images -v /opt/tmp:/opt/tmp sdwandemo/tiny-helper"
-uri = "https://raw.githubusercontent.com/sdwandemo/topology2/master/docker-compose.yml"
+uri = "https://raw.githubusercontent.com/sdwandemo/topology/master/docker-compose.yml"
 compose_file = YAML.load(open(uri).read)
 images = compose_file['services'].select{|k,v| v['environment'] && v['environment']['VM_DISK']}
 
