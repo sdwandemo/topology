@@ -58,7 +58,7 @@ services:
   #   networks:
   #     - management
 
-# FIXME: Mkae sure to remove 'ports' section from service definitions, after enabling the above section!
+# FIXME: Make sure to remove 'ports' section from service definitions, after enabling the above section!
 # <END> poor mans Ingress, until replaced with k8
 
   teleport:
@@ -66,7 +66,7 @@ services:
     command: 'teleport start --roles=proxy,auth --config /etc/teleport.yml'
     hostname: teleport
     domainname: sdwan-demo.com
-    restart: always
+    # restart: always
     volumes:
       # - /mnt/config/teleport:/var/lib/teleport
       - ./resources/teleport_site.yml:/etc/teleport.yml
@@ -99,7 +99,7 @@ services:
     # SET global general_log_file='/tmp/mysql.log';
     # SET global log_output = 'file';
     # SET global general_log = on;
-    restart: always
+    # restart: always
     volumes:
       # - ./resources/guacamole_initdb_mysql.sql:/docker-entrypoint-initdb.d/init.sql
       # FIXME: Find a more elegant way to manage users/sessions during provisioning.
@@ -117,7 +117,7 @@ services:
     image: guacamole/guacd
     hostname: guacd
     domainname: sdwan-demo.com
-    restart: always
+    # restart: always
     networks:
       - management
 
@@ -129,7 +129,7 @@ services:
     image: guacamole/guacamole
     hostname: guacamole
     domainname: sdwan-demo.com
-    restart: always
+    # restart: always
     command: ["/usr/local/bin/guacamole_webroot_fix.sh"]
     volumes:
       - ./scripts/guacamole_webroot_fix.sh:/usr/local/bin/guacamole_webroot_fix.sh
@@ -167,7 +167,7 @@ services:
     privileged: true
     stdin_open: true
     tty: true
-    restart: always
+    # restart: always
     depends_on:
       - teleport
     tmpfs:
@@ -175,68 +175,17 @@ services:
       - /run
     volumes:
       - /sys/fs/cgroup:/sys/fs/cgroup
-      - ./dockerfiles/libvirt/overlay/etc/systemd/system/teleport.service.d/override.conf:/etc/systemd/system/teleport.service.d/override.conf
+      # FIXME: 'dockerfiles' path moved repo
+      - ./resources/teleport_override.conf:/etc/systemd/system/teleport.service.d/override.conf
       - ./resources/xvnc_defaults:/etc/default/xvnc
       - ./scripts/lightdm-helper:/etc/container-boot.d/lightdm
     networks:
       - management
       - egress
-      - n_172_16_1_0__24
-      - n_192_168_1_0__24
-      - n_192_168_2_0__24
-      - n_192_168_3_0__24
-      - n_172_16_2_0__24
-      - n_10_0_2_0__24
-      - n_10_0_4_0__24
-      - n_172_16_3_0__24
-      - n_192_168_4_0__25
-      - n_192_168_4_128__25
-      - n_10_0_5_0__24
-      - n_10_0_6_0__24
-      - n_172_16_5_0__24
-      - n_172_16_6_0__24
-      - n_10_0_7_0__24
-      - n_172_16_7_0__24
-      - n_172_16_8_0__24
-      - n_192_168_100_0__24
-      - n_192_168_7_0__25
-      - n_192_168_7_128__25
-      - n_172_16_21_0__24
-      - n_10_0_21_0__24
-      - n_10_0_1_0__25
-      - n_10_0_8_0__24
-      - n_10_0_1_128__25
-      - n_172_16_51_0__24
-      - n_192_168_6_0__25
-      - n_172_16_52_0__24
-      - n_192_168_6_128__25
-      - n_192_168_5_0__24
 
 ##################################################
 # Viptela kVMs
 ##################################################
-
-  # # define from CMD
-  # e-regdc1:
-  #   image: voobscout/viptela
-  #   command: '-n e-regdc1 -t "e-regdc1 North West quadrant on Diagram" -m 2048m --net "10.10.10.0/24 192.168.7.0/24 172.16.7.0/24 10.0.7.0/24" -c 4'
-  #   hostname: e-regdc1
-  #   domainname: sdwan-demo.com
-  #   privileged: true
-  #   stdin_open: true
-  #   tty: true
-  #   restart: always
-  #   tmpfs:
-  #     - /tmp
-  #     - /run
-  #   volumes:
-  #     - /mnt/images:/var/lib/libvirt/images
-  #     - /mnt/images/ubuntu_1604.qcow2:/var/lib/libvirt/images/image.qcow2
-  #     - /sys/fs/cgroup:/sys/fs/cgroup
-  #   networks:
-  #     - n_192_168_7_0__24
-  #     - n_172_16_7_0__24
-  #     - n_10_0_7_0__24
 
 ##################################################
 # 1 - Site1
@@ -283,7 +232,8 @@ services:
       VM_TITLE: 'E - Regional DataCenter'
       VM_MEM: 2048m
       VM_CPUS: 2
-      VM_NET: '10.10.10.0/24 192.168.7.0/25 192.168.7.128/25 172.16.7.0/24 10.0.7.0/24'
+      VM_NICS: 5
+      VM_NET: '10.10.10.0/24'
       VM_DISK: /var/lib/libvirt/images/viptela-edge-genericx86-64.qcow2
       VM_DISK_SIZE: 4G
     hostname: e-reg-dc
@@ -291,7 +241,7 @@ services:
     privileged: true
     stdin_open: true
     tty: true
-    restart: always
+    # restart: always
     depends_on:
       - teleport
     tmpfs:
@@ -302,10 +252,7 @@ services:
       - /sys/fs/cgroup:/sys/fs/cgroup
     networks:
       - management
-      - n_192_168_7_0__25
-      - n_192_168_7_128__25
-      - n_172_16_7_0__24
-      - n_10_0_7_0__24
+      - egress
 
 # TODO: sdwan-demo.com/firewall
 # WAN interface to EGRESS
@@ -316,7 +263,8 @@ services:
       VM_TITLE: 'pfSense 2.3.4 embedded kernel'
       VM_MEM: 1024m
       VM_CPUS: 1
-      VM_NET: '10.10.10.0/24 10.11.11.0/24 192.168.7.0/25 192.168.7.128/25'
+      VM_NICS: 4
+      VM_NET: '10.10.10.0/24'
       VM_DISK: /var/lib/libvirt/images/pfSense_234.qcow2
       VM_DISK_SIZE: 5G
     hostname: firewall
@@ -324,7 +272,7 @@ services:
     privileged: true
     stdin_open: true
     tty: true
-    restart: always
+    # restart: always
     tmpfs:
       - /tmp
       - /run
@@ -334,8 +282,6 @@ services:
     networks:
       - management
       - egress
-      - n_192_168_7_0__25
-      - n_192_168_7_128__25
 
 # TODO: connect NIC to EGRESS
   core-switch:
@@ -343,17 +289,18 @@ services:
     environment:
       VM_NAME: core-switch
       VM_TITLE: 'E - DataCenter Core Switch'
-      VM_MEM: 2048m
-      VM_CPUS: 2
-      VM_NET: '10.10.10.0/24 10.11.11.0/24 192.168.5.0/24 172.16.51.0/24 192.168.6.0/25 172.16.52.0/24 192.168.6.128/25'
-      VM_DISK: /var/lib/libvirt/images/viptela-edge-genericx86-64.qcow2
-      VM_DISK_SIZE: 4G
+      VM_MEM: 4g
+      VM_CPUS: 1
+      VM_NICS: 6
+      VM_NET: '10.10.10.0/24'
+      VM_DISK: /var/lib/libvirt/images/csr1000v-universalk9.03.12.00.S.154-2.S-std.qcow2
+      VM_DISK_SIZE: 8G
     hostname: core-switch
     domainname: sdwan-demo.com
     privileged: true
     stdin_open: true
     tty: true
-    restart: always
+    # restart: always
     tmpfs:
       - /tmp
       - /run
@@ -363,21 +310,16 @@ services:
     networks:
       - management
       - egress
-      - n_192_168_5_0__24
-      - n_172_16_51_0__24
-      - n_192_168_6_0__25
-      - n_172_16_52_0__24
-      - n_192_168_6_128__25
 
   ux-srv-coreswitch:
     image: sdwandemo/teleport
     command: 'teleport start --roles=node --token=internalxyz --auth-server=teleport:3025'
     hostname: ux-srv-coreswitch
     domainname: sdwan-demo.com
-    restart: always
+    # restart: always
     networks:
       - management
-      - n_192_168_5_0__24
+      - egress
 
   dc-left:
     image: sdwandemo/libvirt
@@ -386,7 +328,8 @@ services:
       VM_TITLE: 'E - Regional DataCenter - Left'
       VM_MEM: 2048m
       VM_CPUS: 2
-      VM_NET: '10.10.10.0/24 172.16.51.0/24 192.168.6.0/25 10.0.5.0/24 172.16.5.0/24'
+      VM_NICS: 4
+      VM_NET: '10.10.10.0/24'
       VM_DISK: /var/lib/libvirt/images/viptela-edge-genericx86-64.qcow2
       VM_DISK_SIZE: 4G
     hostname: dc-left
@@ -394,7 +337,7 @@ services:
     privileged: true
     stdin_open: true
     tty: true
-    restart: always
+    # restart: always
     tmpfs:
       - /tmp
       - /run
@@ -403,10 +346,7 @@ services:
       - /sys/fs/cgroup:/sys/fs/cgroup
     networks:
       - management
-      - n_172_16_51_0__24
-      - n_192_168_6_0__25
-      - n_10_0_5_0__24
-      - n_172_16_5_0__24
+      - egress
 
   dc-right:
     image: sdwandemo/libvirt
@@ -415,7 +355,8 @@ services:
       VM_TITLE: 'E - Regional DataCenter - Right'
       VM_MEM: 2048m
       VM_CPUS: 2
-      VM_NET: '10.10.10.0/24 172.16.52.0/24 192.168.6.128/25 172.16.6.0/24 10.0.6.0/24'
+      VM_NICS: 4
+      VM_NET: '10.10.10.0/24'
       VM_DISK: /var/lib/libvirt/images/viptela-edge-genericx86-64.qcow2
       VM_DISK_SIZE: 4G
     hostname: dc-right
@@ -423,7 +364,7 @@ services:
     privileged: true
     stdin_open: true
     tty: true
-    restart: always
+    # restart: always
     tmpfs:
       - /tmp
       - /run
@@ -432,10 +373,7 @@ services:
       - /sys/fs/cgroup:/sys/fs/cgroup
     networks:
       - management
-      - n_172_16_52_0__24
-      - n_192_168_6_128__25
-      - n_172_16_6_0__24
-      - n_10_0_6_0__24
+      - egress
 
 # TODO: Connect one nic to EGRESS
   e-inet:
@@ -445,7 +383,8 @@ services:
       VM_TITLE: 'E - Internet router'
       VM_MEM: 2048m
       VM_CPUS: 2
-      VM_NET: '10.10.10.0/24 10.11.11.0/24 10.0.7.0/24 10.0.5.0/24 10.0.6.0/24 10.0.8.0/24 10.0.1.128/25 10.0.2.0/24 10.0.4.0/24'
+      VM_NICS: 9
+      VM_NET: '10.10.10.0/24'
       VM_DISK: /var/lib/libvirt/images/viptela-edge-genericx86-64.qcow2
       VM_DISK_SIZE: 4G
     hostname: e-inet
@@ -453,7 +392,7 @@ services:
     privileged: true
     stdin_open: true
     tty: true
-    restart: always
+    # restart: always
     tmpfs:
       - /tmp
       - /run
@@ -463,13 +402,6 @@ services:
     networks:
       - management
       - egress
-      - n_10_0_7_0__24
-      - n_10_0_5_0__24
-      - n_10_0_6_0__24
-      - n_10_0_8_0__24
-      - n_10_0_1_128__25
-      - n_10_0_2_0__24
-      - n_10_0_4_0__24
 
   e-mpls:
     image: sdwandemo/libvirt
@@ -478,7 +410,8 @@ services:
       VM_TITLE: 'E - MPLS'
       VM_MEM: 2048m
       VM_CPUS: 2
-      VM_NET: '10.10.10.0/24 172.16.7.0/24 172.16.5.0/24 172.16.6.0/24 172.16.8.0/24 172.16.1.0/24 172.16.2.0/24 172.16.3.0/24'
+      VM_NICS: 9
+      VM_NET: '10.10.10.0/24'
       VM_DISK: /var/lib/libvirt/images/viptela-edge-genericx86-64.qcow2
       VM_DISK_SIZE: 4G
     hostname: e-mpls
@@ -486,7 +419,7 @@ services:
     privileged: true
     stdin_open: true
     tty: true
-    restart: always
+    # restart: always
     tmpfs:
       - /tmp
       - /run
@@ -495,13 +428,7 @@ services:
       - /sys/fs/cgroup:/sys/fs/cgroup
     networks:
       - management
-      - n_172_16_7_0__24
-      - n_172_16_5_0__24
-      - n_172_16_6_0__24
-      - n_172_16_8_0__24
-      - n_172_16_1_0__24
-      - n_172_16_2_0__24
-      - n_172_16_3_0__24
+      - egress
 
 ##################################################
 # TODO: URI: sdwan-demo.com/wanem
@@ -512,7 +439,8 @@ services:
       VM_TITLE: 'WanEm - http://wanem.sourceforge.net/'
       VM_MEM: 500m
       VM_CPUS: 1
-      VM_NET: '10.10.10.0/24 10.0.1.128/25 10.0.1.0/25'
+      VM_NICS: 3
+      VM_NET: '10.10.10.0/24'
       VM_DISK: /var/lib/libvirt/images/wanem-2.3-x86-64.qcow2
       VM_TEMPLATE: 'https://raw.githubusercontent.com/sdwandemo/topology2/master/resources/domain_template_wanem.xml'
       VM_DISK_SIZE: 5G
@@ -521,7 +449,7 @@ services:
     privileged: true
     stdin_open: true
     tty: true
-    restart: always
+    # restart: always
     tmpfs:
       - /tmp
       - /run
@@ -530,8 +458,7 @@ services:
       - /sys/fs/cgroup:/sys/fs/cgroup
     networks:
       - management
-      - n_10_0_1_128__25
-      - n_10_0_1_0__25
+      - egress
 
   e-site1:
     image: sdwandemo/libvirt
@@ -540,7 +467,8 @@ services:
       VM_TITLE: 'E - Site 1'
       VM_MEM: 2048m
       VM_CPUS: 2
-      VM_NET: '10.10.10.0/24 10.0.1.0/25 172.16.1.0/24 192.168.1.0/24'
+      VM_NICS: 4
+      VM_NET: '10.10.10.0/24'
       VM_DISK: /var/lib/libvirt/images/viptela-edge-genericx86-64.qcow2
       VM_DISK_SIZE: 4G
     hostname: e-site1
@@ -548,7 +476,7 @@ services:
     privileged: true
     stdin_open: true
     tty: true
-    restart: always
+    # restart: always
     tmpfs:
       - /tmp
       - /run
@@ -557,19 +485,17 @@ services:
       - /sys/fs/cgroup:/sys/fs/cgroup
     networks:
       - management
-      - n_10_0_1_0__25
-      - n_172_16_1_0__24
-      - n_192_168_1_0__24
+      - egress
 
   ux-srv-site1:
     image: sdwandemo/teleport
     command: 'teleport start --roles=node --token=internalxyz --auth-server=teleport:3025'
     hostname: ux-srv-site1
     domainname: sdwan-demo.com
-    restart: always
+    # restart: always
     networks:
       - management
-      - n_192_168_1_0__24
+      - egress
 
   e-left-site2:
     image: sdwandemo/libvirt
@@ -578,7 +504,8 @@ services:
       VM_TITLE: 'E - Left Site 2'
       VM_MEM: 2048m
       VM_CPUS: 2
-      VM_NET: '10.10.10.0/24 10.0.2.0/24 172.16.21.0/24 10.0.21.0/24 192.168.2.0/24'
+      VM_NICS: 5
+      VM_NET: '10.10.10.0/24'
       VM_DISK: /var/lib/libvirt/images/viptela-edge-genericx86-64.qcow2
       VM_DISK_SIZE: 4G
     hostname: e-left-site2
@@ -586,7 +513,7 @@ services:
     privileged: true
     stdin_open: true
     tty: true
-    restart: always
+    # restart: always
     tmpfs:
       - /tmp
       - /run
@@ -595,10 +522,7 @@ services:
       - /sys/fs/cgroup:/sys/fs/cgroup
     networks:
       - management
-      - n_10_0_2_0__24
-      - n_172_16_21_0__24
-      - n_10_0_21_0__24
-      - n_192_168_2_0__24
+      - egress
 
   e-right-site2:
     image: sdwandemo/libvirt
@@ -607,7 +531,8 @@ services:
       VM_TITLE: 'E - Right Site 2'
       VM_MEM: 2048m
       VM_CPUS: 2
-      VM_NET: '10.10.10.0/24 10.0.21.0/24 172.16.21.0/24 172.16.2.0/24 192.168.2.0/24'
+      VM_NICS: 5
+      VM_NET: '10.10.10.0/24'
       VM_DISK: /var/lib/libvirt/images/viptela-edge-genericx86-64.qcow2
       VM_DISK_SIZE: 4G
     hostname: e-right-site2
@@ -615,7 +540,7 @@ services:
     privileged: true
     stdin_open: true
     tty: true
-    restart: always
+    # restart: always
     tmpfs:
       - /tmp
       - /run
@@ -624,10 +549,7 @@ services:
       - /sys/fs/cgroup:/sys/fs/cgroup
     networks:
       - management
-      - n_10_0_21_0__24
-      - n_172_16_21_0__24
-      - n_172_16_2_0__24
-      - n_192_168_2_0__24
+      - egress
 
 # TODO: VNC session from desktop be accessible on sdwan-demo.com/desktop
 # DONE: Direct vnc, without guacamole menu
@@ -643,7 +565,7 @@ services:
     privileged: true
     stdin_open: true
     tty: true
-    restart: always
+    # restart: always
     depends_on:
       - teleport
     tmpfs:
@@ -651,12 +573,13 @@ services:
       - /run
     volumes:
       - /sys/fs/cgroup:/sys/fs/cgroup
-      - ./dockerfiles/libvirt/overlay/etc/systemd/system/teleport.service.d/override.conf:/etc/systemd/system/teleport.service.d/override.conf
+      # FIXME: './dockerfiles' is no longer at this location!
+      - ./resources/teleport_override.conf:/etc/systemd/system/teleport.service.d/override.conf
       - ./resources/xvnc_defaults:/etc/default/xvnc
       - ./scripts/lightdm-helper:/etc/container-boot.d/lightdm
     networks:
       - management
-      - n_192_168_2_0__24
+      - egress
     ports:
       - "2222:22"
 
@@ -667,7 +590,8 @@ services:
       VM_TITLE: 'E - vBond1 Upper right (demonstrator)'
       VM_MEM: 2048m
       VM_CPUS: 2
-      VM_NET: '10.10.10.0/24 192.168.100.0/24'
+      VM_NICS: 2
+      VM_NET: '10.10.10.0/24'
       VM_DISK: /var/lib/libvirt/images/viptela-edge-genericx86-64.qcow2
       VM_DISK_SIZE: 4G
     hostname: e-bond1-demo
@@ -675,7 +599,7 @@ services:
     privileged: true
     stdin_open: true
     tty: true
-    restart: always
+    # restart: always
     tmpfs:
       - /tmp
       - /run
@@ -684,7 +608,7 @@ services:
       - /sys/fs/cgroup:/sys/fs/cgroup
     networks:
       - management
-      - n_192_168_100_0__24
+      - egress
 
   e-bond2-demo:
     image: sdwandemo/libvirt
@@ -693,7 +617,8 @@ services:
       VM_TITLE: 'E - vBond2 Upper right (demonstrator)'
       VM_MEM: 2048m
       VM_CPUS: 2
-      VM_NET: '10.10.10.0/24 192.168.100.0/24'
+      VM_NICS: 2
+      VM_NET: '10.10.10.0/24'
       VM_DISK: /var/lib/libvirt/images/viptela-edge-genericx86-64.qcow2
       VM_DISK_SIZE: 4G
     hostname: e-bond2-demo
@@ -701,7 +626,7 @@ services:
     privileged: true
     stdin_open: true
     tty: true
-    restart: always
+    # restart: always
     tmpfs:
       - /tmp
       - /run
@@ -710,7 +635,7 @@ services:
       - /sys/fs/cgroup:/sys/fs/cgroup
     networks:
       - management
-      - n_192_168_100_0__24
+      - egress
 
   s-smart1-demo:
     image: sdwandemo/libvirt
@@ -719,7 +644,8 @@ services:
       VM_TITLE: 'S - vSmart1 Upper right (demonstrator)'
       VM_MEM: 2048m
       VM_CPUS: 2
-      VM_NET: '10.10.10.0/24 192.168.100.0/24'
+      VM_NICS: 2
+      VM_NET: '10.10.10.0/24'
       VM_DISK: /var/lib/libvirt/images/viptela-smart-genericx86-64.qcow2
       VM_DISK_SIZE: 4G
     hostname: s-smart1-demo
@@ -727,7 +653,7 @@ services:
     privileged: true
     stdin_open: true
     tty: true
-    restart: always
+    # restart: always
     tmpfs:
       - /tmp
       - /run
@@ -736,7 +662,7 @@ services:
       - /sys/fs/cgroup:/sys/fs/cgroup
     networks:
       - management
-      - n_192_168_100_0__24
+      - egress
 
   s-smart2-demo:
     image: sdwandemo/libvirt
@@ -745,7 +671,8 @@ services:
       VM_TITLE: 'S - vSmart2 Upper right (demonstrator)'
       VM_MEM: 2048m
       VM_CPUS: 2
-      VM_NET: '10.10.10.0/24 192.168.100.0/24'
+      VM_NICS: 2
+      VM_NET: '10.10.10.0/24'
       VM_DISK: /var/lib/libvirt/images/viptela-smart-genericx86-64.qcow2
       VM_DISK_SIZE: 4G
     hostname: s-smart2-demo
@@ -753,7 +680,7 @@ services:
     privileged: true
     stdin_open: true
     tty: true
-    restart: always
+    # restart: always
     tmpfs:
       - /tmp
       - /run
@@ -762,7 +689,7 @@ services:
       - /sys/fs/cgroup:/sys/fs/cgroup
     networks:
       - management
-      - n_192_168_100_0__24
+      - egress
 
 # TODO: separate URI - sdwan-demo.com/vmanage
   vmanage:
@@ -772,7 +699,8 @@ services:
       VM_TITLE: 'M - vManage Upper right (demonstrator)'
       VM_MEM: 16g
       VM_CPUS: 8
-      VM_NET: '10.10.10.0/24 192.168.100.0/24'
+      VM_NICS: 2
+      VM_NET: '10.10.10.0/24'
       VM_DISK: /var/lib/libvirt/images/viptela-vmanage-genericx86-64.qcow2
       VM_DISK_SIZE: 10G
     hostname: vmanage
@@ -780,7 +708,7 @@ services:
     privileged: true
     stdin_open: true
     tty: true
-    restart: always
+    # restart: always
     tmpfs:
       - /tmp
       - /run
@@ -789,7 +717,7 @@ services:
       - /sys/fs/cgroup:/sys/fs/cgroup
     networks:
       - management
-      - n_192_168_100_0__24
+      - egress
 
   e-cloud:
     image: sdwandemo/libvirt
@@ -798,7 +726,8 @@ services:
       VM_TITLE: 'E - Cloud Upper right (demonstrator)'
       VM_MEM: 2g
       VM_CPUS: 2
-      VM_NET: '10.10.10.0/24 192.168.100.0/24 172.16.8.0/24 10.0.8.0/24'
+      VM_NICS: 4
+      VM_NET: '10.10.10.0/24'
       VM_DISK: /var/lib/libvirt/images/viptela-edge-genericx86-64.qcow2
       VM_DISK_SIZE: 5G
     hostname: e-cloud
@@ -806,7 +735,7 @@ services:
     privileged: true
     stdin_open: true
     tty: true
-    restart: always
+    # restart: always
     tmpfs:
       - /tmp
       - /run
@@ -815,9 +744,7 @@ services:
       - /sys/fs/cgroup:/sys/fs/cgroup
     networks:
       - management
-      - n_192_168_100_0__24
-      - n_172_16_8_0__24
-      - n_10_0_8_0__24
+      - egress
 
   e-b2b:
     image: sdwandemo/libvirt
@@ -826,7 +753,8 @@ services:
       VM_TITLE: 'E - B2B East-Side'
       VM_MEM: 2g
       VM_CPUS: 2
-      VM_NET: '10.10.10.0/24 10.0.4.0/24 192.168.4.0/25'
+      VM_NICS: 3
+      VM_NET: '10.10.10.0/24'
       VM_DISK: /var/lib/libvirt/images/viptela-edge-genericx86-64.qcow2
       VM_DISK_SIZE: 5G
     hostname: e-b2b
@@ -834,7 +762,7 @@ services:
     privileged: true
     stdin_open: true
     tty: true
-    restart: always
+    # restart: always
     tmpfs:
       - /tmp
       - /run
@@ -843,45 +771,44 @@ services:
       - /sys/fs/cgroup:/sys/fs/cgroup
     networks:
       - management
-      - n_10_0_4_0__24
-      - n_192_168_4_0__25
+      - egress
 
-  csr1k-b2b:
-    image: sdwandemo/libvirt
-    environment:
-      VM_NAME: csr1k-b2b
-      VM_TITLE: 'B2B - Cisco CSR 1k'
-      VM_MEM: 4g
-      VM_CPUS: 1
-      VM_NET: '10.10.10.0/24 192.168.4.0/25 192.168.4.128/25'
-      VM_DISK: /var/lib/libvirt/images/csr1000v-universalk9.03.12.00.S.154-2.S-std.qcow2
-      VM_DISK_SIZE: 8G
-    hostname: csr1k-b2b
-    domainname: sdwan-demo.com
-    privileged: true
-    stdin_open: true
-    tty: true
-    restart: always
-    tmpfs:
-      - /tmp
-      - /run
-    volumes:
-      - /mnt/images:/var/lib/libvirt/images
-      - /sys/fs/cgroup:/sys/fs/cgroup
-    networks:
-      - management
-      - n_192_168_4_0__25
-      - n_192_168_4_128__25
+  # csr1k-b2b:
+  #   image: sdwandemo/libvirt
+  #   environment:
+  #     VM_NAME: csr1k-b2b
+  #     VM_TITLE: 'B2B - Cisco CSR 1k'
+  #     VM_MEM: 4g
+  #     VM_CPUS: 1
+  #     VM_NICS: 3
+  #     VM_NET: '10.10.10.0/24'
+  #     VM_DISK: /var/lib/libvirt/images/csr1000v-universalk9.03.12.00.S.154-2.S-std.qcow2
+  #     VM_DISK_SIZE: 8G
+  #   hostname: csr1k-b2b
+  #   domainname: sdwan-demo.com
+  #   privileged: true
+  #   stdin_open: true
+  #   tty: true
+  #   # restart: always
+  #   tmpfs:
+  #     - /tmp
+  #     - /run
+  #   volumes:
+  #     - /mnt/images:/var/lib/libvirt/images
+  #     - /sys/fs/cgroup:/sys/fs/cgroup
+  #   networks:
+  #     - management
+  #     - egress
 
   ux-srv-b2b:
     image: sdwandemo/teleport
     command: 'teleport start --roles=node --token=internalxyz --auth-server=teleport:3025'
     hostname: ux-srv-b2b
     domainname: sdwan-demo.com
-    restart: always
+    # restart: always
     networks:
       - management
-      - n_192_168_4_128__25
+      - egress
 
   csr1k-site3:
     image: sdwandemo/libvirt
@@ -890,7 +817,8 @@ services:
       VM_TITLE: 'Site3 - Cisco CSR 1k'
       VM_MEM: 4g
       VM_CPUS: 1
-      VM_NET: '10.10.10.0/24 172.16.3.0/24 192.168.3.0/24'
+      VM_NICS: 3
+      VM_NET: '10.10.10.0/24'
       VM_DISK: /var/lib/libvirt/images/csr1000v-universalk9.03.12.00.S.154-2.S-std.qcow2
       VM_DISK_SIZE: 8G
     hostname: csr1k-site3
@@ -898,7 +826,7 @@ services:
     privileged: true
     stdin_open: true
     tty: true
-    restart: always
+    # restart: always
     tmpfs:
       - /tmp
       - /run
@@ -907,18 +835,17 @@ services:
       - /sys/fs/cgroup:/sys/fs/cgroup
     networks:
       - management
-      - n_172_16_3_0__24
-      - n_192_168_3_0__24
+      - egress
 
   ux-srv-site3:
     image: sdwandemo/teleport
     command: 'teleport start --roles=node --token=internalxyz --auth-server=teleport:3025'
     hostname: ux-srv-site3
     domainname: sdwan-demo.com
-    restart: always
+    # restart: always
     networks:
       - management
-      - n_192_168_3_0__24
+      - egress
 
 networks:
   management:
@@ -937,271 +864,6 @@ networks:
       driver: default
       config:
       - subnet: 10.11.11.0/24
-  n_172_16_1_0__24:
-    driver: bridge
-    driver_opts:
-      com.docker.network.enable_ipv6: 'false'
-    ipam:
-      driver: default
-      config:
-      - subnet: 172.16.1.0/24
-  n_192_168_1_0__24:
-    driver: bridge
-    driver_opts:
-      com.docker.network.enable_ipv6: 'false'
-    ipam:
-      driver: default
-      config:
-      - subnet: 192.168.1.0/24
-  n_192_168_2_0__24:
-    driver: bridge
-    driver_opts:
-      com.docker.network.enable_ipv6: 'false'
-    ipam:
-      driver: default
-      config:
-      - subnet: 192.168.2.0/24
-  n_192_168_3_0__24:
-    driver: bridge
-    driver_opts:
-      com.docker.network.enable_ipv6: 'false'
-    ipam:
-      driver: default
-      config:
-      - subnet: 192.168.3.0/24
-  n_172_16_2_0__24:
-    driver: bridge
-    driver_opts:
-      com.docker.network.enable_ipv6: 'false'
-    ipam:
-      driver: default
-      config:
-      - subnet: 172.16.2.0/24
-  n_10_0_2_0__24:
-    driver: bridge
-    driver_opts:
-      com.docker.network.enable_ipv6: 'false'
-    ipam:
-      driver: default
-      config:
-      - subnet: 10.0.2.0/24
-  n_10_0_4_0__24:
-    driver: bridge
-    driver_opts:
-      com.docker.network.enable_ipv6: 'false'
-    ipam:
-      driver: default
-      config:
-      - subnet: 10.0.4.0/24
-  n_172_16_3_0__24:
-    driver: bridge
-    driver_opts:
-      com.docker.network.enable_ipv6: 'false'
-    ipam:
-      driver: default
-      config:
-      - subnet: 172.16.3.0/24
-  n_192_168_4_0__25:
-    driver: bridge
-    driver_opts:
-      com.docker.network.enable_ipv6: 'false'
-    ipam:
-      driver: default
-      config:
-      - subnet: 192.168.4.0/25
-  n_192_168_4_128__25:
-    driver: bridge
-    driver_opts:
-      com.docker.network.enable_ipv6: 'false'
-    ipam:
-      driver: default
-      config:
-      - subnet: 192.168.4.128/25
-  n_10_0_5_0__24:
-    driver: bridge
-    driver_opts:
-      com.docker.network.enable_ipv6: 'false'
-    ipam:
-      driver: default
-      config:
-      - subnet: 10.0.5.0/24
-  n_10_0_6_0__24:
-    driver: bridge
-    driver_opts:
-      com.docker.network.enable_ipv6: 'false'
-    ipam:
-      driver: default
-      config:
-      - subnet: 10.0.6.0/24
-  n_172_16_5_0__24:
-    driver: bridge
-    driver_opts:
-      com.docker.network.enable_ipv6: 'false'
-    ipam:
-      driver: default
-      config:
-      - subnet: 172.16.5.0/24
-  n_172_16_6_0__24:
-    driver: bridge
-    driver_opts:
-      com.docker.network.enable_ipv6: 'false'
-    ipam:
-      driver: default
-      config:
-      - subnet: 172.16.6.0/24
-  n_10_0_7_0__24:
-    driver: bridge
-    driver_opts:
-      com.docker.network.enable_ipv6: 'false'
-    ipam:
-      driver: default
-      config:
-      - subnet: 10.0.7.0/24
-  n_172_16_7_0__24:
-    driver: bridge
-    driver_opts:
-      com.docker.network.enable_ipv6: 'false'
-    ipam:
-      driver: default
-      config:
-      - subnet: 172.16.7.0/24
-  n_192_168_100_0__24:
-    driver: bridge
-    driver_opts:
-      com.docker.network.enable_ipv6: 'false'
-    ipam:
-      driver: default
-      config:
-      - subnet: 192.168.100.0/24
-  n_172_16_21_0__24:
-    driver: bridge
-    driver_opts:
-      com.docker.network.enable_ipv6: 'false'
-    ipam:
-      driver: default
-      config:
-      - subnet: 172.16.21.0/24
-  n_10_0_21_0__24:
-    driver: bridge
-    driver_opts:
-      com.docker.network.enable_ipv6: 'false'
-    ipam:
-      driver: default
-      config:
-      - subnet: 10.0.21.0/24
-  n_10_0_1_128__25:
-    driver: bridge
-    driver_opts:
-      com.docker.network.enable_ipv6: 'false'
-    ipam:
-      driver: default
-      config:
-      - subnet: 10.0.1.128/25
-  n_172_16_51_0__24:
-    driver: bridge
-    driver_opts:
-      com.docker.network.enable_ipv6: 'false'
-    ipam:
-      driver: default
-      config:
-      - subnet: 172.16.51.0/24
-  n_192_168_6_0__25:
-    driver: bridge
-    driver_opts:
-      com.docker.network.enable_ipv6: 'false'
-    ipam:
-      driver: default
-      config:
-      - subnet: 192.168.6.0/25
-  n_172_16_52_0__24:
-    driver: bridge
-    driver_opts:
-      com.docker.network.enable_ipv6: 'false'
-    ipam:
-      driver: default
-      config:
-      - subnet: 172.16.52.0/24
-  n_192_168_6_128__25:
-    driver: bridge
-    driver_opts:
-      com.docker.network.enable_ipv6: 'false'
-    ipam:
-      driver: default
-      config:
-      - subnet: 192.168.6.128/25
-  n_192_168_7_0__25:
-    driver: bridge
-    driver_opts:
-      com.docker.network.enable_ipv6: 'false'
-    ipam:
-      driver: default
-      config:
-      - subnet: 192.168.7.0/25
-  n_192_168_7_128__25:
-    driver: bridge
-    driver_opts:
-      com.docker.network.enable_ipv6: 'false'
-    ipam:
-      driver: default
-      config:
-      - subnet: 192.168.7.128/25
-  n_172_16_8_0__24:
-    driver: bridge
-    driver_opts:
-      com.docker.network.enable_ipv6: 'false'
-    ipam:
-      driver: default
-      config:
-      - subnet: 172.16.8.0/24
-  n_10_0_8_0__24:
-    driver: bridge
-    driver_opts:
-      com.docker.network.enable_ipv6: 'false'
-    ipam:
-      driver: default
-      config:
-      - subnet: 10.0.8.0/24
-  n_192_168_5_0__24:
-    driver: bridge
-    driver_opts:
-      com.docker.network.enable_ipv6: 'false'
-    ipam:
-      driver: default
-      config:
-      - subnet: 192.168.5.0/24
-  n_10_0_1_0__25:
-    driver: bridge
-    driver_opts:
-      com.docker.network.enable_ipv6: 'false'
-    ipam:
-      driver: default
-      config:
-      - subnet: 10.0.1.0/25
-  n_172_16_50_0__24:
-    driver: bridge
-    driver_opts:
-      com.docker.network.enable_ipv6: 'false'
-    ipam:
-      driver: default
-      config:
-      - subnet: 172.16.50.0/24
-  n_10_0_9_0__24:
-    driver: bridge
-    driver_opts:
-      com.docker.network.enable_ipv6: 'false'
-    ipam:
-      driver: default
-      config:
-      - subnet: 10.0.9.0/24
-  n_172_16_9_0__24:
-    driver: bridge
-    driver_opts:
-      com.docker.network.enable_ipv6: 'false'
-    ipam:
-      driver: default
-      config:
-      - subnet: 172.16.9.0/24
-
   # ext:
   #   external:
   #     name: donzo
