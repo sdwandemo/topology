@@ -175,7 +175,6 @@ services:
       - /run
     volumes:
       - /sys/fs/cgroup:/sys/fs/cgroup
-      # FIXME: 'dockerfiles' path moved repo
       - ./resources/teleport_override.conf:/etc/systemd/system/teleport.service.d/override.conf
       - ./resources/xvnc_defaults:/etc/default/xvnc
       - ./scripts/lightdm-helper:/etc/container-boot.d/lightdm
@@ -573,7 +572,6 @@ services:
       - /run
     volumes:
       - /sys/fs/cgroup:/sys/fs/cgroup
-      # FIXME: './dockerfiles' is no longer at this location!
       - ./resources/teleport_override.conf:/etc/systemd/system/teleport.service.d/override.conf
       - ./resources/xvnc_defaults:/etc/default/xvnc
       - ./scripts/lightdm-helper:/etc/container-boot.d/lightdm
