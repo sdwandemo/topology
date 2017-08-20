@@ -850,6 +850,7 @@ networks:
     driver: bridge
     driver_opts:
       com.docker.network.enable_ipv6: 'false'
+      com.docker.network.bridge.name: 'management4app'
     ipam:
       driver: default
       config:
@@ -858,6 +859,7 @@ networks:
     driver: bridge
     driver_opts:
       com.docker.network.enable_ipv6: 'false'
+      com.docker.network.bridge.name: 'switch4app'
     ipam:
       driver: default
       config:

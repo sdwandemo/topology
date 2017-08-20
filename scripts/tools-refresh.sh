@@ -5,6 +5,16 @@ docker pull sdwandemo/tiny-helper
 DKR="docker run --rm -t -w /opt/tmp -v /mnt/images:/mnt/images -v /opt/tmp:/opt/tmp sdwandemo/tiny-helper"
 compose_url="https://github.com/sdwandemo/topology.git"
 
+_mk_networks() {
+    local driver_opts="--opt com.docker.network.bridge.name=management"
+    local driver="--driver bridge"
+    local name="management"
+    local subnet="--subnet 10.10.10.0/24"
+    local gw="--gateway 10.10.10.1"
+
+    [[ ! $(docker network ls | grep -si $name) ]] && docker network create $driver $driver_opts $subnet $gw $name
+}
+
 _pull_images() {
     images=$(docker images | awk 'NR > 1 {print $1":"$2}')
     [[ -n "$images" ]] && for i in $images; do docker pull $i; done
