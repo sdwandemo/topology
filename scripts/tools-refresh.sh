@@ -52,6 +52,14 @@ _refresh_docker_machine_kvm() {
     _install_binary $src $dst
 }
 
+_refresh_kubectl() {
+    local binary=/usr/local/bin/kubectl
+    local stable=$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)
+    local uri=https://storage.googleapis.com/kubernetes-release/release/$stable/bin/linux/amd64/kubectl
+    curl -Lo $binary $uri
+    chmod +x $binary
+}
+
 _refresh_minikube() {
     local arch="linux-amd64$"
     local repo="kubernetes/minikube"
@@ -79,6 +87,7 @@ _refresh_helm() {
 _refresh_all_tools() {
     _refresh_docker_compose
     _refresh_docker_machine_kvm
+    _refresh_kubectl
     _refresh_minikube
     _refresh_helm
 }
