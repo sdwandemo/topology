@@ -84,12 +84,20 @@ _refresh_helm() {
     logger -t tools-refresh -s refreshed /usr/local/bin/helm
 }
 
+_refresh_shell_env() {
+    local cmd="runuser -l ubuntu -c"
+    $cmd '[[ ! -d $HOME/.liquidprompt ]] && git clone https://github.com/nojhan/liquidprompt.git $HOME/.liquidprompt || cd $HOME/.liquidprompt && git pull'
+    $cmd '[[ ! -d $HOME/.oh-my-zsh ]] && git clone git://github.com/robbyrussell/oh-my-zsh.git $HOME/.oh-my-zsh || cd $HOME/.oh-my-zsh && git pull'
+    $cmd '[[ ! $(grep -i liquid $HOME/.zshrc) ]] && echo "[[ $- = *i* ]] && source ~/.liquidprompt/liquidprompt" >> $HOME/.zshrc'
+}
+
 _refresh_all_tools() {
     _refresh_docker_compose
     _refresh_docker_machine_kvm
     _refresh_kubectl
     _refresh_minikube
     _refresh_helm
+    _refresh_shell_env
 }
 
 _docker_compose_run() {
