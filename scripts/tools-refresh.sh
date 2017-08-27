@@ -88,6 +88,7 @@ _refresh_shell_env() {
     local cmd="runuser -l ubuntu -c"
     $cmd '[[ ! -d $HOME/.liquidprompt ]] && git clone https://github.com/nojhan/liquidprompt.git $HOME/.liquidprompt || cd $HOME/.liquidprompt && git pull'
     $cmd '[[ ! -d $HOME/.oh-my-zsh ]] && git clone git://github.com/robbyrussell/oh-my-zsh.git $HOME/.oh-my-zsh || cd $HOME/.oh-my-zsh && git pull'
+    # FIXME: proper escaping is needed for '$-'
     $cmd '[[ ! $(grep -i liquid $HOME/.zshrc) ]] && echo "[[ $- = *i* ]] && source ~/.liquidprompt/liquidprompt" >> $HOME/.zshrc'
 }
 
